@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		DF6C3D9D2ECBE645003963D9 /* MusicKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DF6C3D9C2ECBE645003963D9 /* MusicKit.framework */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		DF58E5B02E68E590008D4922 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -24,14 +28,29 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		DF58E5A22E68E58E008D4922 /* DAOmates.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DAOmates.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DF58E5A22E68E58E008D4922 /* Strawbie.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Strawbie.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DF58E5AF2E68E590008D4922 /* DAOmatesTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DAOmatesTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		DF58E5B92E68E590008D4922 /* DAOmatesUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DAOmatesUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		DF6C3D922EC906A8003963D9 /* Test_Flight_Onboarding_Video_V2.mp4 */ = {isa = PBXFileReference; lastKnownFileType = file; name = Test_Flight_Onboarding_Video_V2.mp4; path = ../../../../Downloads/Test_Flight_Onboarding_Video_V2.mp4; sourceTree = "<group>"; };
+		DF6C3D9C2ECBE645003963D9 /* MusicKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MusicKit.framework; path = System/Library/Frameworks/MusicKit.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		DFC675992E975EB60004C0C1 /* Exceptions for "DAOmates" folder in "DAOmates" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = DF58E5A12E68E58E008D4922 /* DAOmates */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		DF58E5A42E68E58E008D4922 /* DAOmates */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				DFC675992E975EB60004C0C1 /* Exceptions for "DAOmates" folder in "DAOmates" target */,
+			);
 			path = DAOmates;
 			sourceTree = "<group>";
 		};
@@ -52,6 +71,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DF6C3D9D2ECBE645003963D9 /* MusicKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -75,9 +95,11 @@
 		DF58E5992E68E58E008D4922 = {
 			isa = PBXGroup;
 			children = (
+				DF6C3D922EC906A8003963D9 /* Test_Flight_Onboarding_Video_V2.mp4 */,
 				DF58E5A42E68E58E008D4922 /* DAOmates */,
 				DF58E5B22E68E590008D4922 /* DAOmatesTests */,
 				DF58E5BC2E68E590008D4922 /* DAOmatesUITests */,
+				DF6C3D9B2ECBE645003963D9 /* Frameworks */,
 				DF58E5A32E68E58E008D4922 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -85,11 +107,19 @@
 		DF58E5A32E68E58E008D4922 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				DF58E5A22E68E58E008D4922 /* DAOmates.app */,
+				DF58E5A22E68E58E008D4922 /* Strawbie.app */,
 				DF58E5AF2E68E590008D4922 /* DAOmatesTests.xctest */,
 				DF58E5B92E68E590008D4922 /* DAOmatesUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		DF6C3D9B2ECBE645003963D9 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				DF6C3D9C2ECBE645003963D9 /* MusicKit.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -114,7 +144,7 @@
 			packageProductDependencies = (
 			);
 			productName = DAOmates;
-			productReference = DF58E5A22E68E58E008D4922 /* DAOmates.app */;
+			productReference = DF58E5A22E68E58E008D4922 /* Strawbie.app */;
 			productType = "com.apple.product-type.application";
 		};
 		DF58E5AE2E68E590008D4922 /* DAOmatesTests */ = {
@@ -395,8 +425,12 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 88HDCQ6TP9;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSAppleMusicUsageDescription = "We need access to Apple Music to play your favorite songs";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Strawbie needs access to your microphone to record voice messages when chatting with your AI bestie. Your voice is processed locally and used only for speech-to-text conversion.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Strawbie uses speech recognition to convert your voice messages into text when chatting. This allows you to have natural conversations using voice input.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -408,7 +442,7 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = ai.vybelabs.DAOmates;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = Strawbie;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -422,8 +456,12 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 88HDCQ6TP9;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSAppleMusicUsageDescription = "We need access to Apple Music to play your favorite songs";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Strawbie needs access to your microphone to record voice messages when chatting with your AI bestie. Your voice is processed locally and used only for speech-to-text conversion.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Strawbie uses speech recognition to convert your voice messages into text when chatting. This allows you to have natural conversations using voice input.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -435,7 +473,7 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = ai.vybelabs.DAOmates;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = Strawbie;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -448,6 +486,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 88HDCQ6TP9;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
 				MARKETING_VERSION = 1.0;
@@ -466,6 +505,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 88HDCQ6TP9;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
 				MARKETING_VERSION = 1.0;
@@ -483,6 +523,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 88HDCQ6TP9;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = ai.vybelabs.DAOmatesUITests;
@@ -499,6 +540,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 88HDCQ6TP9;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = ai.vybelabs.DAOmatesUITests;
