@@ -1,0 +1,14 @@
+# Nixpacks configuration for Railway
+# This tells Railway exactly how to build and run the app
+
+[build]
+# Use Node 18.x
+cmds = [
+  "cd youtube-backend",
+  "npm install"
+]
+
+[start]
+# Start the Node server from youtube-backend
+cmd = "cd youtube-backend && node server.js"
+

@@ -1,0 +1,6 @@
+[build]
+root = "youtube-backend"
+
+[start]
+cmd = "node server.js"
+

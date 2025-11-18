@@ -1,0 +1,6 @@
+[build]
+# Empty - uses package.json to detect Node.js
+
+[start]
+cmd = "node server.js"
+
