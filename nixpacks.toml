@@ -2,15 +2,15 @@
 # This tells Railway exactly how to build and run the app
 
 [build]
-# Install Python and system dependencies
-# Then install Node dependencies and yt-dlp
+# Install Python, pip, and yt-dlp FIRST
+# Then install Node dependencies
 cmds = [
-  "apt-get update && apt-get install -y python3 python3-pip",
-  "pip3 install yt-dlp || python3 -m pip install yt-dlp",
+  "apt-get update && apt-get install -y python3 python3-pip ffmpeg",
+  "pip3 install --upgrade yt-dlp",
   "cd youtube-backend && npm install"
 ]
 
 [start]
-# Start the Node server from youtube-backend
-cmd = "cd youtube-backend && node server.js"
+# Verify yt-dlp is available, then start the server
+cmd = "which yt-dlp && cd youtube-backend && node server.js"
 
