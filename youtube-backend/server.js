@@ -24,7 +24,23 @@ app.get('/health', (req, res) => {
  */
 function runYtDlp(args) {
   try {
-    const result = execSync(`yt-dlp ${args}`, {
+    // Try multiple paths for yt-dlp
+    let cmd = 'yt-dlp';
+    try {
+      execSync('which yt-dlp', { encoding: 'utf-8' });
+    } catch {
+      // Try common paths
+      const paths = ['/usr/local/bin/yt-dlp', '/usr/bin/yt-dlp', 'python3 -m yt_dlp'];
+      for (const path of paths) {
+        try {
+          execSync(`${path} --version`, { encoding: 'utf-8', stdio: 'pipe' });
+          cmd = path;
+          break;
+        } catch {}
+      }
+    }
+    
+    const result = execSync(`${cmd} ${args}`, {
       encoding: 'utf-8',
       maxBuffer: 1024 * 1024 * 10,
       timeout: 30000

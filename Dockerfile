@@ -11,13 +11,15 @@ RUN apt-get update && \
     apt-get install -y nodejs && \
     rm -rf /var/lib/apt/lists/*
 
-# Install yt-dlp globally
-RUN pip3 install --no-cache-dir yt-dlp
+# Install yt-dlp globally and create symlink
+RUN pip3 install --no-cache-dir yt-dlp && \
+    ln -sf /usr/local/bin/yt-dlp /usr/bin/yt-dlp
 
 # Verify installations
 RUN python3 --version && \
     node --version && \
     npm --version && \
+    which yt-dlp && \
     yt-dlp --version
 
 WORKDIR /app
