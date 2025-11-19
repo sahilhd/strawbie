@@ -3,10 +3,25 @@ const cors = require('cors');
 const { execSync, spawn } = require('child_process');
 const https = require('https');
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Setup YouTube cookies if provided (to bypass bot detection)
+const COOKIES_PATH = '/tmp/youtube_cookies.txt';
+if (process.env.YOUTUBE_COOKIES) {
+  try {
+    fs.writeFileSync(COOKIES_PATH, process.env.YOUTUBE_COOKIES);
+    console.log('✅ YouTube cookies configured (bot detection bypass enabled)');
+  } catch (error) {
+    console.error('⚠️ Failed to write cookies file:', error.message);
+  }
+} else {
+  console.log('⚠️ No YouTube cookies configured - may encounter bot detection');
+}
 
 // Cache for search results
 const searchCache = new Map();
@@ -22,7 +37,7 @@ app.get('/health', (req, res) => {
 });
 
 /**
- * Run yt-dlp command
+ * Run yt-dlp command with optional cookies
  */
 function runYtDlp(args) {
   try {
@@ -42,7 +57,15 @@ function runYtDlp(args) {
       }
     }
     
-    const result = execSync(`${cmd} ${args}`, {
+    // Add cookies if available (to bypass bot detection)
+    let cookiesArg = '';
+    if (fs.existsSync(COOKIES_PATH)) {
+      cookiesArg = `--cookies ${COOKIES_PATH}`;
+      console.log('🍪 Using YouTube cookies to bypass bot detection');
+    }
+    
+    const fullCmd = `${cmd} ${cookiesArg} ${args}`;
+    const result = execSync(fullCmd, {
       encoding: 'utf-8',
       maxBuffer: 1024 * 1024 * 10,
       timeout: 30000

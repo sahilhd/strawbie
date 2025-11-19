@@ -102,9 +102,11 @@ class MusicService: NSObject, ObservableObject {
             timeObserver = nil
         }
         
-        // Create player
+        // Create player item directly (YouTube URLs should work without custom headers)
         let playerItem = AVPlayerItem(url: url)
         audioPlayer = AVPlayer(playerItem: playerItem)
+        
+        print("🎵 Created AVPlayer with YouTube audio URL")
         
         // Check volume
         let volume = AVAudioSession.sharedInstance().outputVolume

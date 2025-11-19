@@ -75,9 +75,9 @@ class YouTubeService {
     
     private init() {}
     
-    /// Search for music on YouTube via backend service
+    /// Search for music on YouTube via backend service with REAL yt-dlp extraction
     func searchMusic(query: String) async throws -> [MusicTrack] {
-        print("🔍 Searching YouTube via backend for: \(query)")
+        print("🔍 🎵 Searching REAL YouTube music for: \(query)")
         
         guard let url = URL(string: "\(backendBaseURL)/api/search-and-extract") else {
             print("❌ Invalid backend URL")
@@ -87,11 +87,13 @@ class YouTubeService {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 30 // Allow time for yt-dlp extraction
         
         let body: [String: String] = ["query": query]
         request.httpBody = try JSONEncoder().encode(body)
         
-        print("🎥 Calling backend: \(backendBaseURL)/api/search-and-extract")
+        print("🎥 Calling REAL YouTube backend: \(backendBaseURL)/api/search-and-extract")
+        print("📤 Request body: \(String(data: request.httpBody ?? Data(), encoding: .utf8) ?? "")")
         
         let (data, response) = try await URLSession.shared.data(for: request)
         
@@ -100,30 +102,56 @@ class YouTubeService {
             throw YouTubeError.apiError
         }
         
+        print("📊 Backend response status: \(httpResponse.statusCode)")
+        
         guard (200...299).contains(httpResponse.statusCode) else {
             let errorData = String(data: data, encoding: .utf8) ?? "Unknown error"
             print("❌ Backend API error: \(httpResponse.statusCode) - \(errorData)")
             throw YouTubeError.apiError
         }
         
+        // Log raw response for debugging
+        if let rawResponse = String(data: data, encoding: .utf8) {
+            print("📥 Raw backend response: \(rawResponse)")
+        }
+        
         let backendResponse = try JSONDecoder().decode(YouTubeBackendResponse.self, from: data)
         
         guard let audioUrl = backendResponse.audioUrl, !audioUrl.isEmpty else {
             print("⚠️ Backend did not return a playable audio URL")
+            print("⚠️ Response: \(backendResponse)")
             throw YouTubeError.apiError
         }
         
-        print("✅ Backend returned playable audio URL for: \(backendResponse.title ?? query)")
+        print("✅ ✅ ✅ REAL YouTube audio URL received!")
+        print("🎵 Title: \(backendResponse.title ?? "Unknown")")
+        print("🎵 Video ID: \(backendResponse.videoId ?? "Unknown")")
+        print("🎵 Duration: \(backendResponse.duration ?? 0)s")
+        print("🎵 Audio URL: \(audioUrl.prefix(100))...")
         
-        // Return as a single MusicTrack
-        return [MusicTrack(
-            id: backendResponse.videoId ?? UUID().uuidString,
-            title: backendResponse.title ?? query,
-            artist: "YouTube",
-            artworkURL: nil,
-            audioURL: audioUrl,
+        // Extract artist from title (usually "Artist - Song" or "Song by Artist")
+        let titleComponents = (backendResponse.title ?? query).components(separatedBy: " - ")
+        let artist = titleComponents.count > 1 ? titleComponents[0] : "YouTube"
+        let songTitle = titleComponents.count > 1 ? titleComponents[1] : (backendResponse.title ?? query)
+        
+        // Use direct YouTube audio URL (backend already extracted it)
+        let videoId = backendResponse.videoId ?? ""
+        
+        print("🎵 Using direct YouTube audio URL")
+        
+        // Return as a single MusicTrack with YouTube audio
+        let track = MusicTrack(
+            id: videoId,
+            title: songTitle,
+            artist: artist,
+            artworkURL: backendResponse.thumbnail,
+            audioURL: audioUrl,  // Use direct YouTube URL from backend
             duration: backendResponse.duration ?? 180.0
-        )]
+        )
+        
+        print("🎵 Created MusicTrack: \(track.title) by \(track.artist)")
+        
+        return [track]
     }
     
     /// Get video details including duration
@@ -186,6 +214,7 @@ struct YouTubeBackendResponse: Codable {
     let title: String?
     let duration: Double?
     let videoId: String?
+    let thumbnail: String?
     let success: Bool?
     
     enum CodingKeys: String, CodingKey {
@@ -193,6 +222,7 @@ struct YouTubeBackendResponse: Codable {
         case title = "title"
         case duration = "duration"
         case videoId = "videoId"
+        case thumbnail = "thumbnail"
         case success = "success"
     }
 }

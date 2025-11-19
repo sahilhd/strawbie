@@ -12,7 +12,14 @@ class AIService {
     private let openAIURL = "https://api.openai.com/v1/chat/completions"
     private let apiKey = AppConfig.openAIAPIKey
     
-    private init() {}
+    private init() {
+        // Debug: Check if API key is loaded
+        if apiKey.isEmpty {
+            print("❌ OpenAI API key is EMPTY!")
+        } else {
+            print("✅ OpenAI API key loaded: \(apiKey.prefix(10))...*** (length: \(apiKey.count))")
+        }
+    }
     
     // MARK: - Advanced Prompt Engineering System
     
