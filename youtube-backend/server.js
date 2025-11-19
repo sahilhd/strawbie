@@ -42,7 +42,7 @@ app.post('/api/extract-audio', async (req, res) => {
     
     try {
       // Use system yt-dlp to get video info
-      const infoJson = execSync(`yt-dlp --dump-json --no-warnings --quiet --ignore-errors "${youtubeUrl}"`, {
+      const infoJson = execSync(`python3 -m yt_dlp --dump-json --no-warnings --quiet --ignore-errors "${youtubeUrl}"`, {
         encoding: 'utf-8',
         maxBuffer: 1024 * 1024 * 10
       }).trim();
@@ -51,7 +51,7 @@ app.post('/api/extract-audio', async (req, res) => {
       console.log(`✅ Got video info: ${info.title}`);
       
       // Extract best audio URL
-      const audioUrl = execSync(`yt-dlp --format bestaudio --get-url --no-warnings --quiet "${youtubeUrl}"`, {
+      const audioUrl = execSync(`python3 -m yt_dlp --format bestaudio --get-url --no-warnings --quiet "${youtubeUrl}"`, {
         encoding: 'utf-8'
       }).trim();
       
@@ -126,7 +126,7 @@ app.post('/api/search-and-extract', async (req, res) => {
       try {
         // Search YouTube using system yt-dlp
         const searchUrl = `ytsearch1:${query}`;
-        const resultsJson = execSync(`yt-dlp --dump-json --no-warnings --quiet --ignore-errors "${searchUrl}"`, {
+        const resultsJson = execSync(`python3 -m yt_dlp --dump-json --no-warnings --quiet --ignore-errors "${searchUrl}"`, {
           encoding: 'utf-8',
           maxBuffer: 1024 * 1024 * 10
         }).trim();
@@ -158,7 +158,7 @@ app.post('/api/search-and-extract', async (req, res) => {
     try {
       // Get video info if not already fetched
       if (!videoInfo) {
-        const infoJson = execSync(`yt-dlp --dump-json --no-warnings --quiet --ignore-errors "${targetUrl}"`, {
+        const infoJson = execSync(`python3 -m yt_dlp --dump-json --no-warnings --quiet --ignore-errors "${targetUrl}"`, {
           encoding: 'utf-8',
           maxBuffer: 1024 * 1024 * 10
         }).trim();
@@ -169,7 +169,7 @@ app.post('/api/search-and-extract', async (req, res) => {
       console.log(`✅ Got video info: ${videoInfo.title}`);
       
       // Extract best audio URL
-      const audioUrl = execSync(`yt-dlp --format bestaudio --get-url --no-warnings --quiet "${targetUrl}"`, {
+      const audioUrl = execSync(`python3 -m yt_dlp --format bestaudio --get-url --no-warnings --quiet "${targetUrl}"`, {
         encoding: 'utf-8'
       }).trim();
       
