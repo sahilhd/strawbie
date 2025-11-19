@@ -1,18 +1,12 @@
 const express = require('express');
 const cors = require('cors');
+const { exec } = require('child_process');
+const { promisify } = require('util');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
-// Simple demo mapping of queries to YouTube video IDs
-const demoVideos = {
-  'drake': { id: 'dQw4w9WgXcQ', title: 'Drake - One Dance (Remix)', duration: 240 },
-  'lofi': { id: 'jfKfPfyJRdk', title: 'lofi hip hop radio - beats to relax/study to', duration: 12345 },
-  'music': { id: 'jfKfPfyJRdk', title: 'Music Stream', duration: 180 },
-  'song': { id: 'dQw4w9WgXcQ', title: 'Popular Song', duration: 210 },
-  'chill': { id: 'jfKfPfyJRdk', title: 'Chill Beats', duration: 200 }
-};
+const execAsync = promisify(exec);
 
 // Middleware
 app.use(cors());
@@ -40,28 +34,60 @@ app.post('/api/extract-audio', async (req, res) => {
       });
     }
 
-    const id = videoId || (url && url.includes('v=') ? url.split('v=')[1].split('&')[0] : null);
+    // Build YouTube URL
+    const youtubeUrl = url || `https://www.youtube.com/watch?v=${videoId}`;
     
-    if (!id) {
-      return res.status(400).json({ error: 'Invalid video URL or ID' });
+    console.log(`🎬 Extracting audio from: ${youtubeUrl}`);
+    
+    try {
+      // Use yt-dlp to get best audio format
+      const command = `yt-dlp -f "bestaudio[ext=m4a]/bestaudio" --get-url --no-warnings "${youtubeUrl}"`;
+      
+      console.log(`Running: ${command}`);
+      const { stdout, stderr } = await execAsync(command, { timeout: 30000 });
+      
+      if (stderr && !stdout) {
+        throw new Error(`yt-dlp error: ${stderr}`);
+      }
+      
+      // Extract audio URL (last line of output)
+      const audioUrl = stdout.trim().split('\n').pop();
+      
+      if (!audioUrl || !audioUrl.startsWith('http')) {
+        throw new Error('Could not extract valid audio URL');
+      }
+      
+      console.log(`✅ Successfully extracted audio URL`);
+      
+      // Get video info
+      const infoCommand = `yt-dlp --dump-json --no-warnings "${youtubeUrl}"`;
+      let videoInfo = { title: 'Unknown', duration: 0 };
+      
+      try {
+        const { stdout: jsonOutput } = await execAsync(infoCommand, { timeout: 30000 });
+        const info = JSON.parse(jsonOutput);
+        videoInfo = {
+          title: info.title || 'Unknown',
+          duration: info.duration || 0,
+          videoId: info.id || videoId
+        };
+      } catch (e) {
+        console.log('Could not parse video info, using defaults');
+      }
+      
+      res.json({
+        success: true,
+        audioUrl: audioUrl,
+        title: videoInfo.title,
+        duration: videoInfo.duration,
+        videoId: videoInfo.videoId,
+        extractedAt: new Date().toISOString()
+      });
+      
+    } catch (innerError) {
+      console.error(`⚠️ yt-dlp failed: ${innerError.message}`);
+      throw innerError;
     }
-
-    console.log(`🎬 Extracting audio for video ID: ${id}`);
-    
-    // Return demo audio URL that actually works
-    // Using royalty-free music from Google Cloud Storage
-    const demoAudioUrl = 'https://www.bensound.com/bensound-music/bensound-ukulele.mp3';
-    
-    console.log(`✅ Successfully extracted audio URL`);
-    
-    res.json({
-      success: true,
-      audioUrl: demoAudioUrl,
-      title: `YouTube Video ${id}`,
-      duration: 180,
-      videoId: id,
-      extractedAt: new Date().toISOString()
-    });
     
   } catch (error) {
     console.error('❌ Error extracting audio:', error.message);
@@ -92,41 +118,107 @@ app.post('/api/search-and-extract', async (req, res) => {
 
     console.log(`🔍 Processing: query="${query}", videoId="${videoId}"`);
     
-    // Map query to demo video
-    let matchedVideo;
+    let targetVideoId = videoId;
+    let videoInfo = null;
     
-    if (videoId) {
-      // If videoId provided, use it
-      matchedVideo = { id: videoId, title: `Video ${videoId}`, duration: 180 };
-    } else if (query) {
-      // Search in demo videos
-      matchedVideo = demoVideos[query.toLowerCase()];
+    if (url) {
+      // Extract video ID from URL
+      const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/);
+      targetVideoId = match ? match[1] : null;
       
-      if (!matchedVideo) {
-        // Default to lofi if not found
-        console.log(`⚠️ Query "${query}" not in demo videos, defaulting to lofi`);
-        matchedVideo = demoVideos['lofi'];
+      if (!targetVideoId) {
+        throw new Error('Invalid YouTube URL');
+      }
+    } else if (!videoId && query) {
+      // Search YouTube for the query
+      console.log(`🔍 Searching YouTube for: ${query}`);
+      
+      try {
+        // Use yt-dlp to search
+        const searchCommand = `yt-dlp --dump-json --no-warnings "ytsearch1:${query}"`;
+        
+        console.log(`Running search command...`);
+        const { stdout: searchOutput } = await execAsync(searchCommand, { timeout: 30000 });
+        
+        const results = JSON.parse(searchOutput);
+        
+        if (!results || !results.entries || results.entries.length === 0) {
+          throw new Error('No YouTube results found');
+        }
+        
+        const firstResult = results.entries[0];
+        targetVideoId = firstResult.id;
+        videoInfo = {
+          title: firstResult.title || 'Unknown',
+          duration: firstResult.duration || 0
+        };
+        
+        console.log(`✅ Found: ${videoInfo.title} (ID: ${targetVideoId})`);
+        
+      } catch (searchError) {
+        console.error(`❌ Search failed: ${searchError.message}`);
+        throw searchError;
       }
     }
     
-    if (!matchedVideo) {
-      return res.status(400).json({ error: 'Could not find video' });
+    if (!targetVideoId) {
+      throw new Error('Could not determine video ID');
     }
-
-    console.log(`✅ Found video: ${matchedVideo.title} (ID: ${matchedVideo.id})`);
     
-    // Return working demo audio URL
-    const demoAudioUrl = 'https://www.bensound.com/bensound-music/bensound-ukulele.mp3';
+    // Now extract audio from the video
+    const youtubeUrl = `https://www.youtube.com/watch?v=${targetVideoId}`;
     
-    res.json({
-      success: true,
-      audioUrl: demoAudioUrl,
-      title: matchedVideo.title,
-      videoId: matchedVideo.id,
-      duration: matchedVideo.duration,
-      url: `https://www.youtube.com/watch?v=${matchedVideo.id}`,
-      extractedAt: new Date().toISOString()
-    });
+    console.log(`🎬 Extracting audio from: ${youtubeUrl}`);
+    
+    try {
+      // Use yt-dlp to get best audio format
+      const command = `yt-dlp -f "bestaudio[ext=m4a]/bestaudio" --get-url --no-warnings "${youtubeUrl}"`;
+      
+      const { stdout, stderr } = await execAsync(command, { timeout: 30000 });
+      
+      if (stderr && !stdout) {
+        throw new Error(`yt-dlp error: ${stderr}`);
+      }
+      
+      // Extract audio URL (last line of output)
+      const audioUrl = stdout.trim().split('\n').pop();
+      
+      if (!audioUrl || !audioUrl.startsWith('http')) {
+        throw new Error('Could not extract valid audio URL');
+      }
+      
+      console.log(`✅ Successfully extracted audio URL`);
+      
+      // If we don't have video info yet, get it now
+      if (!videoInfo) {
+        const infoCommand = `yt-dlp --dump-json --no-warnings "${youtubeUrl}"`;
+        try {
+          const { stdout: jsonOutput } = await execAsync(infoCommand, { timeout: 30000 });
+          const info = JSON.parse(jsonOutput);
+          videoInfo = {
+            title: info.title || 'Unknown',
+            duration: info.duration || 0
+          };
+        } catch (e) {
+          console.log('Could not parse video info, using defaults');
+          videoInfo = { title: 'Unknown', duration: 0 };
+        }
+      }
+      
+      res.json({
+        success: true,
+        audioUrl: audioUrl,
+        title: videoInfo.title,
+        videoId: targetVideoId,
+        duration: videoInfo.duration,
+        url: youtubeUrl,
+        extractedAt: new Date().toISOString()
+      });
+      
+    } catch (extractError) {
+      console.error(`❌ Extract failed: ${extractError.message}`);
+      throw extractError;
+    }
     
   } catch (error) {
     console.error('❌ Error searching/extracting:', error.message);
@@ -160,11 +252,11 @@ app.listen(PORT, () => {
    - POST /api/extract-audio
    - POST /api/search-and-extract
 
-📦 Using: ytdl-core (npm package)
-✅ No system dependencies needed
-✅ Ready to extract YouTube audio! 🎧
+🔧 Using: yt-dlp command-line tool
+✅ Real YouTube audio extraction
+✅ Search and extract in one call
+🎵 Supported: Any YouTube video
 
-🎵 Supported queries: drake, lofi, music, song, etc.
+Ready to extract real YouTube audio! 🎧
   `);
 });
-
