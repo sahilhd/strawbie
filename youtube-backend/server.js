@@ -45,7 +45,8 @@ app.post('/api/extract-audio', async (req, res) => {
       const info = await exec(youtubeUrl, {
         dumpJson: true,
         noWarnings: true,
-        quiet: true
+        quiet: true,
+        ignoreErrors: true
       });
       
       console.log(`✅ Got video info: ${info.title}`);
@@ -55,7 +56,8 @@ app.post('/api/extract-audio', async (req, res) => {
         format: 'bestaudio[ext=m4a]/bestaudio',
         getUrl: true,
         noWarnings: true,
-        quiet: true
+        quiet: true,
+        extractorArgs: 'youtube:player_client=android'
       });
       
       if (!audioUrl) {
@@ -127,12 +129,15 @@ app.post('/api/search-and-extract', async (req, res) => {
       console.log(`🔍 Searching YouTube for: ${query}`);
       
       try {
-        // Search YouTube using youtube-dl-exec
+        // Search YouTube using youtube-dl-exec with extractor args to bypass restrictions
         const searchUrl = `ytsearch1:${query}`;
         const results = await exec(searchUrl, {
           dumpJson: true,
           noWarnings: true,
-          quiet: true
+          quiet: true,
+          ignoreErrors: true,
+          playlist: false,
+          extractorArgs: 'youtube:player_client=android'
         });
         
         if (!results || !results.id) {
@@ -163,7 +168,9 @@ app.post('/api/search-and-extract', async (req, res) => {
         videoInfo = await exec(targetUrl, {
           dumpJson: true,
           noWarnings: true,
-          quiet: true
+          quiet: true,
+          ignoreErrors: true,
+          extractorArgs: 'youtube:player_client=android'
         });
       }
       
@@ -174,7 +181,8 @@ app.post('/api/search-and-extract', async (req, res) => {
         format: 'bestaudio[ext=m4a]/bestaudio',
         getUrl: true,
         noWarnings: true,
-        quiet: true
+        quiet: true,
+        extractorArgs: 'youtube:player_client=android'
       });
       
       if (!audioUrl) {
