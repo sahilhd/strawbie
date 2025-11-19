@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const { YouTube } = require('play-dl');
+const playdl = require('play-dl');
 require('dotenv').config();
 
 const app = express();
@@ -42,16 +42,16 @@ app.post('/api/extract-audio', async (req, res) => {
     
     try {
       // Get video info using play-dl
-      const videoInfo = await YouTube.getVideo(youtubeUrl);
+      const videoInfo = await playdl.video_info(youtubeUrl);
       
       if (!videoInfo) {
         throw new Error('Could not fetch video information');
       }
       
-      console.log(`✅ Got video info: ${videoInfo.title}`);
+      console.log(`✅ Got video info: ${videoInfo.video_details.title}`);
       
       // Get stream
-      const stream = await videoInfo.fetch();
+      const stream = await playdl.stream(youtubeUrl, { quality: 1, type: 'audio' });
       if (!stream || !stream.url) {
         throw new Error('Could not extract audio URL');
       }
@@ -61,9 +61,9 @@ app.post('/api/extract-audio', async (req, res) => {
       res.json({
         success: true,
         audioUrl: stream.url,
-        title: videoInfo.title,
-        duration: videoInfo.durationInSec || 0,
-        videoId: videoInfo.id,
+        title: videoInfo.video_details.title,
+        duration: videoInfo.video_details.duration,
+        videoId: videoInfo.video_details.video_id,
         extractedAt: new Date().toISOString()
       });
       
@@ -121,7 +121,7 @@ app.post('/api/search-and-extract', async (req, res) => {
       
       try {
         // Search YouTube
-        const videos = await YouTube.search(query, { limit: 1, type: 'video' });
+        const videos = await playdl.search(query, { limit: 1, type: 'video' });
         
         if (!videos || videos.length === 0) {
           throw new Error('No YouTube results found');
@@ -147,16 +147,16 @@ app.post('/api/search-and-extract', async (req, res) => {
     
     try {
       // Get video info
-      const videoInfo = await YouTube.getVideo(targetUrl);
+      const videoInfo = await playdl.video_info(targetUrl);
       
       if (!videoInfo) {
         throw new Error('Could not fetch video information');
       }
       
-      console.log(`✅ Got video info: ${videoInfo.title}`);
+      console.log(`✅ Got video info: ${videoInfo.video_details.title}`);
       
       // Get stream
-      const stream = await videoInfo.fetch();
+      const stream = await playdl.stream(targetUrl, { quality: 1, type: 'audio' });
       if (!stream || !stream.url) {
         throw new Error('Could not extract audio URL');
       }
@@ -166,9 +166,9 @@ app.post('/api/search-and-extract', async (req, res) => {
       const responseData = {
         success: true,
         audioUrl: stream.url,
-        title: videoInfo.title,
-        videoId: videoInfo.id,
-        duration: videoInfo.durationInSec || 0,
+        title: videoInfo.video_details.title,
+        videoId: videoInfo.video_details.video_id,
+        duration: videoInfo.video_details.duration || 0,
         url: targetUrl,
         extractedAt: new Date().toISOString()
       };
