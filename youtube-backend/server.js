@@ -1,7 +1,39 @@
 const express = require('express');
 const cors = require('cors');
-const { execSync } = require('child_process');
+const { execSync, spawnSync } = require('child_process');
+const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
+
+// Helper function to run yt-dlp - handles both systems
+function runYtDlp(args) {
+  try {
+    // Try python3 -m first
+    const result = execSync(`python3 -m yt_dlp ${args}`, {
+      encoding: 'utf-8',
+      maxBuffer: 1024 * 1024 * 10,
+      shell: '/bin/bash'
+    });
+    return result;
+  } catch (e1) {
+    try {
+      // Fallback to python -m
+      const result = execSync(`python -m yt_dlp ${args}`, {
+        encoding: 'utf-8',
+        maxBuffer: 1024 * 1024 * 10,
+        shell: '/bin/bash'
+      });
+      return result;
+    } catch (e2) {
+      // Last resort: try yt-dlp directly
+      const result = execSync(`yt-dlp ${args}`, {
+        encoding: 'utf-8',
+        maxBuffer: 1024 * 1024 * 10
+      });
+      return result;
+    }
+  }
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -41,19 +73,14 @@ app.post('/api/extract-audio', async (req, res) => {
     console.log(`🎬 Extracting audio from: ${youtubeUrl}`);
     
     try {
-      // Use system yt-dlp to get video info
-      const infoJson = execSync(`python3 -m yt_dlp --dump-json --no-warnings --quiet --ignore-errors "${youtubeUrl}"`, {
-        encoding: 'utf-8',
-        maxBuffer: 1024 * 1024 * 10
-      }).trim();
+      // Use yt-dlp to get video info
+      const infoJson = runYtDlp(`--dump-json --no-warnings --quiet --ignore-errors "${youtubeUrl}"`).trim();
       
       const info = JSON.parse(infoJson);
       console.log(`✅ Got video info: ${info.title}`);
       
       // Extract best audio URL
-      const audioUrl = execSync(`python3 -m yt_dlp --format bestaudio --get-url --no-warnings --quiet "${youtubeUrl}"`, {
-        encoding: 'utf-8'
-      }).trim();
+      const audioUrl = runYtDlp(`--format bestaudio --get-url --no-warnings --quiet "${youtubeUrl}"`).trim();
       
       if (!audioUrl) {
         throw new Error('Could not extract audio URL');
@@ -124,12 +151,9 @@ app.post('/api/search-and-extract', async (req, res) => {
       console.log(`🔍 Searching YouTube for: ${query}`);
       
       try {
-        // Search YouTube using system yt-dlp
+        // Search YouTube using yt-dlp
         const searchUrl = `ytsearch1:${query}`;
-        const resultsJson = execSync(`python3 -m yt_dlp --dump-json --no-warnings --quiet --ignore-errors "${searchUrl}"`, {
-          encoding: 'utf-8',
-          maxBuffer: 1024 * 1024 * 10
-        }).trim();
+        const resultsJson = runYtDlp(`--dump-json --no-warnings --quiet --ignore-errors "${searchUrl}"`).trim();
         
         const results = JSON.parse(resultsJson);
         
@@ -158,20 +182,14 @@ app.post('/api/search-and-extract', async (req, res) => {
     try {
       // Get video info if not already fetched
       if (!videoInfo) {
-        const infoJson = execSync(`python3 -m yt_dlp --dump-json --no-warnings --quiet --ignore-errors "${targetUrl}"`, {
-          encoding: 'utf-8',
-          maxBuffer: 1024 * 1024 * 10
-        }).trim();
-        
+        const infoJson = runYtDlp(`--dump-json --no-warnings --quiet --ignore-errors "${targetUrl}"`).trim();
         videoInfo = JSON.parse(infoJson);
       }
       
       console.log(`✅ Got video info: ${videoInfo.title}`);
       
       // Extract best audio URL
-      const audioUrl = execSync(`python3 -m yt_dlp --format bestaudio --get-url --no-warnings --quiet "${targetUrl}"`, {
-        encoding: 'utf-8'
-      }).trim();
+      const audioUrl = runYtDlp(`--format bestaudio --get-url --no-warnings --quiet "${targetUrl}"`).trim();
       
       if (!audioUrl) {
         throw new Error('Could not extract audio URL');
