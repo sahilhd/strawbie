@@ -202,12 +202,11 @@ app.listen(PORT, () => {
    - POST /api/extract-audio
    - POST /api/search-and-extract
 
-📝 Setup Instructions:
-1. Install yt-dlp: npm install yt-dlp
-2. Make sure ffmpeg is installed: brew install ffmpeg
-3. Start server: npm start
+📦 Using: ytdl-core (npm package)
+✅ No system dependencies needed
+✅ Ready to extract YouTube audio! 🎧
 
-Ready to extract YouTube audio! 🎧
+🎵 Supported queries: drake, lofi, music, song, etc.
   `);
 });
 
