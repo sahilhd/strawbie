@@ -1,12 +1,14 @@
 const express = require('express');
 const cors = require('cors');
-const { exec } = require('child_process');
-const { promisify } = require('util');
+const { YouTube } = require('play-dl');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const execAsync = promisify(exec);
+
+// Cache for search results to speed up repeated queries
+const searchCache = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 // Middleware
 app.use(cors());
@@ -34,58 +36,39 @@ app.post('/api/extract-audio', async (req, res) => {
       });
     }
 
-    // Build YouTube URL
     const youtubeUrl = url || `https://www.youtube.com/watch?v=${videoId}`;
     
     console.log(`🎬 Extracting audio from: ${youtubeUrl}`);
     
     try {
-      // Use yt-dlp to get best audio format
-      const command = `yt-dlp -f "bestaudio[ext=m4a]/bestaudio" --get-url --no-warnings "${youtubeUrl}"`;
+      // Get video info using play-dl
+      const videoInfo = await YouTube.getVideo(youtubeUrl);
       
-      console.log(`Running: ${command}`);
-      const { stdout, stderr } = await execAsync(command, { timeout: 30000 });
-      
-      if (stderr && !stdout) {
-        throw new Error(`yt-dlp error: ${stderr}`);
+      if (!videoInfo) {
+        throw new Error('Could not fetch video information');
       }
       
-      // Extract audio URL (last line of output)
-      const audioUrl = stdout.trim().split('\n').pop();
+      console.log(`✅ Got video info: ${videoInfo.title}`);
       
-      if (!audioUrl || !audioUrl.startsWith('http')) {
-        throw new Error('Could not extract valid audio URL');
+      // Get stream
+      const stream = await videoInfo.fetch();
+      if (!stream || !stream.url) {
+        throw new Error('Could not extract audio URL');
       }
       
       console.log(`✅ Successfully extracted audio URL`);
       
-      // Get video info
-      const infoCommand = `yt-dlp --dump-json --no-warnings "${youtubeUrl}"`;
-      let videoInfo = { title: 'Unknown', duration: 0 };
-      
-      try {
-        const { stdout: jsonOutput } = await execAsync(infoCommand, { timeout: 30000 });
-        const info = JSON.parse(jsonOutput);
-        videoInfo = {
-          title: info.title || 'Unknown',
-          duration: info.duration || 0,
-          videoId: info.id || videoId
-        };
-      } catch (e) {
-        console.log('Could not parse video info, using defaults');
-      }
-      
       res.json({
         success: true,
-        audioUrl: audioUrl,
+        audioUrl: stream.url,
         title: videoInfo.title,
-        duration: videoInfo.duration,
-        videoId: videoInfo.videoId,
+        duration: videoInfo.durationInSec || 0,
+        videoId: videoInfo.id,
         extractedAt: new Date().toISOString()
       });
       
     } catch (innerError) {
-      console.error(`⚠️ yt-dlp failed: ${innerError.message}`);
+      console.error(`⚠️ Extraction failed: ${innerError.message}`);
       throw innerError;
     }
     
@@ -118,42 +101,36 @@ app.post('/api/search-and-extract', async (req, res) => {
 
     console.log(`🔍 Processing: query="${query}", videoId="${videoId}"`);
     
-    let targetVideoId = videoId;
-    let videoInfo = null;
+    let targetUrl;
     
     if (url) {
-      // Extract video ID from URL
-      const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/);
-      targetVideoId = match ? match[1] : null;
+      targetUrl = url;
+    } else if (videoId) {
+      targetUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    } else if (query) {
+      // Check cache first
+      const cacheKey = `search:${query.toLowerCase()}`;
+      const cached = searchCache.get(cacheKey);
       
-      if (!targetVideoId) {
-        throw new Error('Invalid YouTube URL');
+      if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+        console.log(`✅ Using cached search result for: ${query}`);
+        return res.json(cached.data);
       }
-    } else if (!videoId && query) {
-      // Search YouTube for the query
+      
       console.log(`🔍 Searching YouTube for: ${query}`);
       
       try {
-        // Use yt-dlp to search
-        const searchCommand = `yt-dlp --dump-json --no-warnings "ytsearch1:${query}"`;
+        // Search YouTube
+        const videos = await YouTube.search(query, { limit: 1, type: 'video' });
         
-        console.log(`Running search command...`);
-        const { stdout: searchOutput } = await execAsync(searchCommand, { timeout: 30000 });
-        
-        const results = JSON.parse(searchOutput);
-        
-        if (!results || !results.entries || results.entries.length === 0) {
+        if (!videos || videos.length === 0) {
           throw new Error('No YouTube results found');
         }
         
-        const firstResult = results.entries[0];
-        targetVideoId = firstResult.id;
-        videoInfo = {
-          title: firstResult.title || 'Unknown',
-          duration: firstResult.duration || 0
-        };
+        const video = videos[0];
+        targetUrl = video.url;
         
-        console.log(`✅ Found: ${videoInfo.title} (ID: ${targetVideoId})`);
+        console.log(`✅ Found: ${video.title}`);
         
       } catch (searchError) {
         console.error(`❌ Search failed: ${searchError.message}`);
@@ -161,59 +138,50 @@ app.post('/api/search-and-extract', async (req, res) => {
       }
     }
     
-    if (!targetVideoId) {
-      throw new Error('Could not determine video ID');
+    if (!targetUrl) {
+      throw new Error('Could not determine video URL');
     }
     
     // Now extract audio from the video
-    const youtubeUrl = `https://www.youtube.com/watch?v=${targetVideoId}`;
-    
-    console.log(`🎬 Extracting audio from: ${youtubeUrl}`);
+    console.log(`🎬 Extracting audio from search result...`);
     
     try {
-      // Use yt-dlp to get best audio format
-      const command = `yt-dlp -f "bestaudio[ext=m4a]/bestaudio" --get-url --no-warnings "${youtubeUrl}"`;
+      // Get video info
+      const videoInfo = await YouTube.getVideo(targetUrl);
       
-      const { stdout, stderr } = await execAsync(command, { timeout: 30000 });
-      
-      if (stderr && !stdout) {
-        throw new Error(`yt-dlp error: ${stderr}`);
+      if (!videoInfo) {
+        throw new Error('Could not fetch video information');
       }
       
-      // Extract audio URL (last line of output)
-      const audioUrl = stdout.trim().split('\n').pop();
+      console.log(`✅ Got video info: ${videoInfo.title}`);
       
-      if (!audioUrl || !audioUrl.startsWith('http')) {
-        throw new Error('Could not extract valid audio URL');
+      // Get stream
+      const stream = await videoInfo.fetch();
+      if (!stream || !stream.url) {
+        throw new Error('Could not extract audio URL');
       }
       
       console.log(`✅ Successfully extracted audio URL`);
       
-      // If we don't have video info yet, get it now
-      if (!videoInfo) {
-        const infoCommand = `yt-dlp --dump-json --no-warnings "${youtubeUrl}"`;
-        try {
-          const { stdout: jsonOutput } = await execAsync(infoCommand, { timeout: 30000 });
-          const info = JSON.parse(jsonOutput);
-          videoInfo = {
-            title: info.title || 'Unknown',
-            duration: info.duration || 0
-          };
-        } catch (e) {
-          console.log('Could not parse video info, using defaults');
-          videoInfo = { title: 'Unknown', duration: 0 };
-        }
+      const responseData = {
+        success: true,
+        audioUrl: stream.url,
+        title: videoInfo.title,
+        videoId: videoInfo.id,
+        duration: videoInfo.durationInSec || 0,
+        url: targetUrl,
+        extractedAt: new Date().toISOString()
+      };
+      
+      // Cache the result
+      if (query) {
+        searchCache.set(`search:${query.toLowerCase()}`, {
+          data: responseData,
+          timestamp: Date.now()
+        });
       }
       
-      res.json({
-        success: true,
-        audioUrl: audioUrl,
-        title: videoInfo.title,
-        videoId: targetVideoId,
-        duration: videoInfo.duration,
-        url: youtubeUrl,
-        extractedAt: new Date().toISOString()
-      });
+      res.json(responseData);
       
     } catch (extractError) {
       console.error(`❌ Extract failed: ${extractError.message}`);
@@ -252,9 +220,11 @@ app.listen(PORT, () => {
    - POST /api/extract-audio
    - POST /api/search-and-extract
 
-🔧 Using: yt-dlp command-line tool
-✅ Real YouTube audio extraction
-✅ Search and extract in one call
+🚀 Using: play-dl (Node.js-based)
+✅ Real YouTube stream extraction
+✅ Search caching for speed (5 min TTL)
+✅ No system dependencies needed
+✅ Lightning fast builds & deployment
 🎵 Supported: Any YouTube video
 
 Ready to extract real YouTube audio! 🎧

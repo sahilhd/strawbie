@@ -1,16 +1,13 @@
 # Nixpacks configuration for Railway
-# This tells Railway exactly how to build and run the app
+# Optimized for fast builds and real YouTube music playback
 
 [build]
-# Install Python, pip, and yt-dlp FIRST
-# Then install Node dependencies
+# Just install Node dependencies - play-dl handles YouTube
 cmds = [
-  "apt-get update && apt-get install -y python3 python3-pip ffmpeg",
-  "pip3 install --upgrade yt-dlp",
-  "cd youtube-backend && npm install"
+  "cd youtube-backend && npm ci --prefer-offline"
 ]
 
 [start]
-# Verify yt-dlp is available, then start the server
-cmd = "which yt-dlp && cd youtube-backend && node server.js"
+# Start the optimized server
+cmd = "cd youtube-backend && node server.js"
 
