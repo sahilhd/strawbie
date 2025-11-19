@@ -37,48 +37,33 @@ app.post('/api/extract-audio', async (req, res) => {
     
     console.log(`🎬 Extracting audio from: ${youtubeUrl}`);
     
-    // Use yt-dlp CLI to extract audio stream URL
-    // Format: best[ext=m4a] gets the best audio in m4a format
-    // Make sure yt-dlp is installed: pip install yt-dlp
-    const command = `yt-dlp -f "bestaudio[ext=m4a]/bestaudio" --get-url --no-warnings "${youtubeUrl}"`;
+    // Get video info using ytdl-core
+    const info = await ytdl.getInfo(youtubeUrl);
     
-    const { stdout, stderr } = await execAsync(command, { timeout: 30000 });
+    // Find best audio-only format
+    const audioFormats = info.formats.filter(f => f.hasAudio && !f.hasVideo);
     
-    if (stderr && !stdout) {
-      throw new Error(`yt-dlp error: ${stderr}`);
+    if (audioFormats.length === 0) {
+      throw new Error('No audio stream available for this video');
     }
     
-    // Extract audio URL from output (last line)
-    const audioUrl = stdout.trim().split('\n').pop();
+    // Sort by audio bitrate and get the best one
+    const bestAudio = audioFormats.sort((a, b) => (b.audioBitrate || 0) - (a.audioBitrate || 0))[0];
+    const audioUrl = bestAudio.url;
     
-    if (!audioUrl || !audioUrl.startsWith('http')) {
-      throw new Error('Could not extract valid audio URL from YouTube');
+    if (!audioUrl) {
+      throw new Error('Could not extract audio URL');
     }
     
     console.log(`✅ Successfully extracted audio URL`);
     
-    // Get video info
-    const infoCommand = `yt-dlp --dump-json --no-warnings "${youtubeUrl}"`;
-    const { stdout: jsonOutput } = await execAsync(infoCommand, { timeout: 30000 });
-    
-    let videoInfo = { title: 'Unknown', duration: 0 };
-    try {
-      const info = JSON.parse(jsonOutput);
-      videoInfo = {
-        title: info.title || 'Unknown',
-        duration: info.duration || 0,
-        thumbnail: info.thumbnail || null
-      };
-    } catch (e) {
-      console.log('Could not parse video info, using defaults');
-    }
-    
     res.json({
       success: true,
       audioUrl: audioUrl,
-      title: videoInfo.title,
-      duration: videoInfo.duration,
-      thumbnail: videoInfo.thumbnail,
+      title: info.videoDetails.title,
+      duration: parseInt(info.videoDetails.lengthSeconds) || 0,
+      thumbnail: info.videoDetails.thumbnail?.thumbnails?.[0]?.url || null,
+      videoId: info.videoDetails.videoId,
       extractedAt: new Date().toISOString()
     });
     
@@ -143,7 +128,7 @@ app.post('/api/search-and-extract', async (req, res) => {
     const info = await ytdl.getInfo(youtubeUrl);
     
     // Find best audio-only format
-    const audioFormats = ytdl.filterFormats(info.formats, f => f.hasAudio && !f.hasVideo);
+    const audioFormats = info.formats.filter(f => f.hasAudio && !f.hasVideo);
     
     if (audioFormats.length === 0) {
       throw new Error('No audio stream available for this video');
