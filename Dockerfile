@@ -2,20 +2,21 @@
 
 FROM node:18-slim
 
-# Install Python and yt-dlp before anything else
+# Set shell for proper error handling
+SHELL ["/bin/bash", "-c"]
+
+# Install system dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       python3 \
       python3-pip \
-      ffmpeg \
-      curl && \
+      ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
-# Install yt-dlp globally via pip3
-RUN pip3 install --no-cache-dir yt-dlp
-
-# Verify yt-dlp is available and works
-RUN which yt-dlp && python3 -m yt_dlp --version
+# Install yt-dlp
+RUN pip3 install --no-cache-dir yt-dlp && \
+    which yt-dlp && \
+    python3 -m yt_dlp --version
 
 WORKDIR /app
 
@@ -24,9 +25,6 @@ COPY youtube-backend/ ./youtube-backend/
 
 # Install Node dependencies
 RUN cd youtube-backend && npm ci --prefer-offline
-
-# Verify youtube-dl-exec can find yt-dlp
-RUN cd youtube-backend && node -e "require('youtube-dl-exec')('--version', {}, function(err, output) { console.log('yt-dlp ready:', output); if(err) console.error(err); })"
 
 # Expose port
 EXPOSE 3000
