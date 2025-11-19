@@ -1,19 +1,14 @@
 # Nixpacks configuration for Railway
-# Optimized for REAL YouTube music extraction using yt-dlp
+# YouTube backend with real music extraction
+
+[providers]
+runtimes = ["python311", "nodejs"]
 
 [build]
-# Install yt-dlp in the build layer
 cmds = [
-  "apt-get update",
-  "apt-get install -y python3 python3-pip",
   "pip3 install --no-cache-dir yt-dlp",
   "cd youtube-backend && npm ci --prefer-offline"
 ]
 
-[[build.nixpkgs]]
-# Ensure we have Python and FFmpeg available
-pkgs = ["python3", "ffmpeg"]
-
 [start]
-# Start the optimized server
 cmd = "cd youtube-backend && node server.js"
