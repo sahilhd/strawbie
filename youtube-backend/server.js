@@ -37,35 +37,45 @@ app.post('/api/extract-audio', async (req, res) => {
     
     console.log(`🎬 Extracting audio from: ${youtubeUrl}`);
     
-    // Get video info using ytdl-core
-    const info = await ytdl.getInfo(youtubeUrl);
-    
-    // Find best audio-only format
-    const audioFormats = info.formats.filter(f => f.hasAudio && !f.hasVideo);
-    
-    if (audioFormats.length === 0) {
-      throw new Error('No audio stream available for this video');
+    try {
+      // Get video info using ytdl-core
+      const info = await ytdl.getInfo(youtubeUrl);
+      
+      console.log(`✅ Got video info: ${info.videoDetails.title}`);
+      
+      // Find best audio-only format
+      const audioFormats = info.formats.filter(f => f.hasAudio && !f.hasVideo);
+      
+      console.log(`📊 Found ${audioFormats.length} audio formats`);
+      
+      if (audioFormats.length === 0) {
+        throw new Error('No audio stream available for this video');
+      }
+      
+      // Sort by audio bitrate and get the best one
+      const bestAudio = audioFormats.sort((a, b) => (b.audioBitrate || 0) - (a.audioBitrate || 0))[0];
+      const audioUrl = bestAudio.url;
+      
+      if (!audioUrl) {
+        throw new Error('Could not extract audio URL');
+      }
+      
+      console.log(`✅ Successfully extracted audio URL`);
+      
+      res.json({
+        success: true,
+        audioUrl: audioUrl,
+        title: info.videoDetails.title,
+        duration: parseInt(info.videoDetails.lengthSeconds) || 0,
+        thumbnail: info.videoDetails.thumbnail?.thumbnails?.[0]?.url || null,
+        videoId: info.videoDetails.videoId,
+        extractedAt: new Date().toISOString()
+      });
+    } catch (innerError) {
+      console.error(`⚠️ getInfo failed: ${innerError.message}`);
+      console.error(`Stack: ${innerError.stack}`);
+      throw innerError;
     }
-    
-    // Sort by audio bitrate and get the best one
-    const bestAudio = audioFormats.sort((a, b) => (b.audioBitrate || 0) - (a.audioBitrate || 0))[0];
-    const audioUrl = bestAudio.url;
-    
-    if (!audioUrl) {
-      throw new Error('Could not extract audio URL');
-    }
-    
-    console.log(`✅ Successfully extracted audio URL`);
-    
-    res.json({
-      success: true,
-      audioUrl: audioUrl,
-      title: info.videoDetails.title,
-      duration: parseInt(info.videoDetails.lengthSeconds) || 0,
-      thumbnail: info.videoDetails.thumbnail?.thumbnails?.[0]?.url || null,
-      videoId: info.videoDetails.videoId,
-      extractedAt: new Date().toISOString()
-    });
     
   } catch (error) {
     console.error('❌ Error extracting audio:', error.message);
@@ -124,36 +134,46 @@ app.post('/api/search-and-extract', async (req, res) => {
 
     console.log(`🔍 Getting audio from: ${youtubeUrl}`);
     
-    // Get video info using ytdl-core
-    const info = await ytdl.getInfo(youtubeUrl);
-    
-    // Find best audio-only format
-    const audioFormats = info.formats.filter(f => f.hasAudio && !f.hasVideo);
-    
-    if (audioFormats.length === 0) {
-      throw new Error('No audio stream available for this video');
+    try {
+      // Get video info using ytdl-core
+      const info = await ytdl.getInfo(youtubeUrl);
+      
+      console.log(`✅ Got video info: ${info.videoDetails.title}`);
+      
+      // Find best audio-only format
+      const audioFormats = info.formats.filter(f => f.hasAudio && !f.hasVideo);
+      
+      console.log(`📊 Found ${audioFormats.length} audio formats`);
+      
+      if (audioFormats.length === 0) {
+        throw new Error('No audio stream available for this video');
+      }
+      
+      // Sort by audio bitrate and get the best one
+      const bestAudio = audioFormats.sort((a, b) => (b.audioBitrate || 0) - (a.audioBitrate || 0))[0];
+      const audioUrl = bestAudio.url;
+      
+      if (!audioUrl) {
+        throw new Error('Could not extract audio URL');
+      }
+      
+      console.log(`✅ Successfully extracted audio for: ${info.videoDetails.title}`);
+      
+      res.json({
+        success: true,
+        audioUrl: audioUrl,
+        title: info.videoDetails.title,
+        videoId: info.videoDetails.videoId,
+        duration: parseInt(info.videoDetails.lengthSeconds) || 0,
+        thumbnail: info.videoDetails.thumbnail?.thumbnails?.[0]?.url || null,
+        url: `https://www.youtube.com/watch?v=${info.videoDetails.videoId}`,
+        extractedAt: new Date().toISOString()
+      });
+    } catch (innerError) {
+      console.error(`⚠️ getInfo failed: ${innerError.message}`);
+      console.error(`Stack: ${innerError.stack}`);
+      throw innerError;
     }
-    
-    // Sort by audio bitrate and get the best one
-    const bestAudio = audioFormats.sort((a, b) => (b.audioBitrate || 0) - (a.audioBitrate || 0))[0];
-    const audioUrl = bestAudio.url;
-    
-    if (!audioUrl) {
-      throw new Error('Could not extract audio URL');
-    }
-    
-    console.log(`✅ Successfully extracted audio for: ${info.videoDetails.title}`);
-    
-    res.json({
-      success: true,
-      audioUrl: audioUrl,
-      title: info.videoDetails.title,
-      videoId: info.videoDetails.videoId,
-      duration: parseInt(info.videoDetails.lengthSeconds) || 0,
-      thumbnail: info.videoDetails.thumbnail?.thumbnails?.[0]?.url || null,
-      url: `https://www.youtube.com/watch?v=${info.videoDetails.videoId}`,
-      extractedAt: new Date().toISOString()
-    });
     
   } catch (error) {
     console.error('❌ Error searching/extracting:', error.message);
