@@ -7,32 +7,30 @@ require('dotenv').config();
 
 // Helper function to run yt-dlp - handles both systems
 function runYtDlp(args) {
-  try {
-    // Try python3 -m first
-    const result = execSync(`python3 -m yt_dlp ${args}`, {
-      encoding: 'utf-8',
-      maxBuffer: 1024 * 1024 * 10,
-      shell: '/bin/bash'
-    });
-    return result;
-  } catch (e1) {
+  const commands = [
+    { cmd: `python3 -m yt_dlp ${args}`, name: 'python3 -m yt_dlp', shell: '/bin/bash' },
+    { cmd: `python -m yt_dlp ${args}`, name: 'python -m yt_dlp', shell: '/bin/bash' },
+    { cmd: `yt-dlp ${args}`, name: 'yt-dlp', shell: true }
+  ];
+  
+  for (const {cmd, name} of commands) {
     try {
-      // Fallback to python -m
-      const result = execSync(`python -m yt_dlp ${args}`, {
+      console.log(`  📡 Trying: ${name}`);
+      const result = execSync(cmd, {
         encoding: 'utf-8',
         maxBuffer: 1024 * 1024 * 10,
-        shell: '/bin/bash'
+        shell: '/bin/bash',
+        stdio: ['pipe', 'pipe', 'pipe']
       });
+      console.log(`  ✅ Success with: ${name}`);
       return result;
-    } catch (e2) {
-      // Last resort: try yt-dlp directly
-      const result = execSync(`yt-dlp ${args}`, {
-        encoding: 'utf-8',
-        maxBuffer: 1024 * 1024 * 10
-      });
-      return result;
+    } catch (e) {
+      console.log(`  ⚠️  Failed with ${name}: ${e.message.split('\n')[0]}`);
+      continue;
     }
   }
+  
+  throw new Error('All yt-dlp invocation methods failed');
 }
 
 const app = express();
