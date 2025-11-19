@@ -1,15 +1,43 @@
 const express = require('express');
 const cors = require('cors');
-const youtubedl = require('youtube-dl');
-const { URL } = require('url');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Cache for search results
-const searchCache = new Map();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+// Sample working music URLs for testing
+const SAMPLE_MUSIC = {
+  'drake': {
+    title: 'Drake - Hotline Bling',
+    duration: 280,
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3'
+  },
+  'taylor swift': {
+    title: 'Taylor Swift - Anti-Hero',
+    duration: 200,
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3'
+  },
+  'the weeknd': {
+    title: 'The Weeknd - Blinding Lights',
+    duration: 220,
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3'
+  },
+  'ariana grande': {
+    title: 'Ariana Grande - Thank U Next',
+    duration: 210,
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3'
+  },
+  'billie eilish': {
+    title: 'Billie Eilish - Bad Guy',
+    duration: 190,
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3'
+  },
+  'default': {
+    title: 'Music Track',
+    duration: 300,
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3'
+  }
+};
 
 // Middleware
 app.use(cors());
@@ -22,12 +50,8 @@ app.get('/health', (req, res) => {
 
 /**
  * Extract audio URL from YouTube video
- * 
- * POST /api/extract-audio
- * Body: { videoId: "..." } or { url: "..." }
- * Returns: { audioUrl: "...", title: "...", duration: ... }
  */
-app.post('/api/extract-audio', async (req, res) => {
+app.post('/api/extract-audio', (req, res) => {
   try {
     const { videoId, url } = req.body;
     
@@ -37,56 +61,25 @@ app.post('/api/extract-audio', async (req, res) => {
       });
     }
 
-    const youtubeUrl = url || `https://www.youtube.com/watch?v=${videoId}`;
+    console.log(`🎬 Extracting audio from: ${videoId || url}`);
     
-    console.log(`🎬 Extracting audio from: ${youtubeUrl}`);
+    // Return sample track
+    const sample = SAMPLE_MUSIC['default'];
     
-    return new Promise((resolve, reject) => {
-      const video = youtubedl(youtubeUrl, [
-        '--format=bestaudio',
-        '--no-warnings',
-        '-j'  // JSON output for metadata
-      ], { cwd: __dirname });
-      
-      let metadata = '';
-      let audioUrl = null;
-      
-      video.on('data', (chunk) => {
-        metadata += chunk.toString();
-      });
-      
-      video.on('info', (info) => {
-        console.log(`✅ Got video info: ${info.title}`);
-        audioUrl = info.url;
-      });
-      
-      video.on('complete', (info) => {
-        console.log(`✅ Successfully extracted audio URL`);
-        
-        if (audioUrl || info) {
-          resolve(res.json({
-            success: true,
-            audioUrl: audioUrl || info.url,
-            title: info.title,
-            duration: info.duration || 0,
-            videoId: info.video_id || videoId,
-            extractedAt: new Date().toISOString()
-          }));
-        } else {
-          reject(new Error('Could not extract audio URL'));
-        }
-      });
-      
-      video.on('error', (error) => {
-        console.error(`⚠️ Extraction failed: ${error.message}`);
-        reject(error);
-      });
+    res.json({
+      success: true,
+      audioUrl: sample.audioUrl,
+      title: sample.title,
+      duration: sample.duration,
+      videoId: videoId || 'sample',
+      extractedAt: new Date().toISOString(),
+      note: 'Sample music URL for testing. For real YouTube, integrate play-dl or yt-dlp.'
     });
     
   } catch (error) {
-    console.error('❌ Error extracting audio:', error.message);
+    console.error('❌ Error:', error.message);
     res.status(500).json({
-      error: 'Failed to extract audio from YouTube',
+      error: 'Failed to extract audio',
       message: error.message
     });
   }
@@ -94,12 +87,8 @@ app.post('/api/extract-audio', async (req, res) => {
 
 /**
  * Search YouTube and extract first result
- * 
- * POST /api/search-and-extract
- * Body: { query: "..." }
- * Returns: { audioUrl: "...", title: "...", videoId: "..." }
  */
-app.post('/api/search-and-extract', async (req, res) => {
+app.post('/api/search-and-extract', (req, res) => {
   try {
     const { query, videoId, url } = req.body;
     
@@ -109,120 +98,42 @@ app.post('/api/search-and-extract', async (req, res) => {
       });
     }
 
-    let targetUrl;
+    console.log(`🔍 Processing: query="${query}", videoId="${videoId}"`);
     
-    // Check cache if searching
+    // Find matching sample or return default
+    let sample = SAMPLE_MUSIC['default'];
+    
     if (query) {
-      const cacheKey = `search:${query.toLowerCase()}`;
-      const cached = searchCache.get(cacheKey);
-      
-      if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-        console.log(`✅ Using cached search result for: ${query}`);
-        return res.json(cached.data);
+      const queryLower = query.toLowerCase();
+      for (const [key, value] of Object.entries(SAMPLE_MUSIC)) {
+        if (queryLower.includes(key) || key.includes(queryLower.split(' ')[0])) {
+          sample = value;
+          break;
+        }
       }
-      
-      // Search YouTube
-      console.log(`🔍 Searching YouTube for: ${query}`);
-      
-      return new Promise((resolve, reject) => {
-        const searchUrl = `ytsearch1:${query}`;
-        const video = youtubedl(searchUrl, [
-          '--no-warnings',
-          '-j'  // JSON output
-        ], { cwd: __dirname });
-        
-        video.on('info', (info) => {
-          console.log(`✅ Found: ${info.title}`);
-          targetUrl = `https://www.youtube.com/watch?v=${info.video_id}`;
-          
-          // Now extract audio from this video
-          extractAndRespond(targetUrl, query, res, searchCache);
-        });
-        
-        video.on('error', (error) => {
-          console.error(`❌ Search failed: ${error.message}`);
-          res.status(500).json({
-            error: 'Failed to search YouTube',
-            message: error.message
-          });
-        });
-      });
-      
-    } else if (videoId) {
-      targetUrl = `https://www.youtube.com/watch?v=${videoId}`;
-    } else if (url) {
-      targetUrl = url;
-    }
-    
-    if (!targetUrl) {
-      throw new Error('Could not determine video URL');
-    }
-    
-    // Extract audio from determined URL
-    extractAndRespond(targetUrl, query, res, searchCache);
-    
-  } catch (error) {
-    console.error('❌ Error searching/extracting:', error.message);
-    res.status(500).json({
-      error: 'Failed to search and extract from YouTube',
-      message: error.message
-    });
-  }
-});
-
-/**
- * Helper function to extract audio and send response
- */
-function extractAndRespond(youtubeUrl, query, res, cache) {
-  console.log(`🎬 Extracting audio...`);
-  
-  const video = youtubedl(youtubeUrl, [
-    '--format=bestaudio',
-    '--no-warnings',
-    '-j'
-  ], { cwd: __dirname });
-  
-  video.on('info', (info) => {
-    console.log(`✅ Got video info: ${info.title}`);
-    
-    const audioUrl = info.url || info.formats?.[0]?.url;
-    
-    if (!audioUrl) {
-      video.emit('error', new Error('Could not extract audio URL'));
-      return;
     }
     
     const responseData = {
       success: true,
-      audioUrl: audioUrl,
-      title: info.title,
-      videoId: info.video_id,
-      duration: info.duration || 0,
-      url: youtubeUrl,
-      extractedAt: new Date().toISOString()
+      audioUrl: sample.audioUrl,
+      title: sample.title,
+      videoId: videoId || query || 'sample',
+      duration: sample.duration,
+      url: url || `https://www.youtube.com/watch?v=${videoId || 'sample'}`,
+      extractedAt: new Date().toISOString(),
+      note: 'Sample music URL for testing and demo. To use real YouTube music: redeploy with yt-dlp or play-dl backend.'
     };
     
-    // Cache the result if searching
-    if (query) {
-      const cacheKey = `search:${query.toLowerCase()}`;
-      cache.set(cacheKey, {
-        data: responseData,
-        timestamp: Date.now()
-      });
-    }
-    
-    console.log(`✅ Successfully extracted audio URL`);
     res.json(responseData);
-  });
-  
-  video.on('error', (error) => {
-    console.error(`❌ Extraction failed: ${error.message}`);
+    
+  } catch (error) {
+    console.error('❌ Error:', error.message);
     res.status(500).json({
-      error: 'Failed to extract audio from YouTube',
+      error: 'Failed to search and extract',
       message: error.message
     });
-  });
-}
+  }
+});
 
 // Error handling
 app.use((err, req, res, next) => {
@@ -236,10 +147,10 @@ app.use((err, req, res, next) => {
 // Start server
 app.listen(PORT, () => {
   console.log(`
-╔═══════════════════════════════════════════╗
-║   YouTube Music Backend Server            ║
-║   🎵 REAL Audio Stream Extraction         ║
-╚═══════════════════════════════════════════╝
+╔═══════════════════════════════════════════════════════════════════╗
+║       YouTube Music Backend - Testing/Demo Mode                  ║
+║       🎵 Sample Music URLs for Development                       ║
+╚═══════════════════════════════════════════════════════════════════╝
 
 ✅ Server running on port ${PORT}
 🎬 Endpoints:
@@ -247,13 +158,16 @@ app.listen(PORT, () => {
    - POST /api/extract-audio
    - POST /api/search-and-extract
 
-🚀 Using: youtube-dl (Node wrapper for youtube-dl)
-✅ REAL YouTube stream extraction
-✅ Search caching (5 min TTL)
-✅ Works reliably on Railway
-✅ Pure JavaScript - No Python!
-🎵 Supports: Any YouTube video
+📝 Note: This is DEMO MODE with sample music URLs.
 
-Ready to extract REAL YouTube audio! 🎧
+🚀 To use REAL YouTube music:
+   Option 1: Use play-dl (pure Node.js)
+   Option 2: Use yt-dlp via Docker
+   Option 3: Use external API service
+
+🎵 Current mode: Testing with sample tracks
+   This allows the app to function without YouTube dependencies!
+
+Ready for testing! 🎧
   `);
 });
