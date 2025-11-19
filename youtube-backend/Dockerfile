@@ -25,12 +25,10 @@ RUN python3 --version && \
 WORKDIR /app
 
 # Copy backend code
-COPY youtube-backend/package*.json ./youtube-backend/
-RUN cd youtube-backend && npm ci --prefer-offline
+COPY package*.json ./
+RUN npm ci --prefer-offline
 
-COPY youtube-backend/ ./youtube-backend/
-
-WORKDIR /app/youtube-backend
+COPY . ./
 
 # Expose port
 EXPOSE 3000

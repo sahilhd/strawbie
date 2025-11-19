@@ -1,9 +1,9 @@
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "./Dockerfile"
+dockerfilePath = "youtube-backend/Dockerfile"
 
 [deploy]
-startCommand = "cd youtube-backend && node server.js"
+startCommand = "node server.js"
 healthcheckPath = "/health"
 healthcheckTimeout = 100
 restartPolicyType = "ON_FAILURE"
