@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const playdl = require('play-dl');
+const { exec } = require('youtube-dl-exec');
 require('dotenv').config();
 
 const app = express();
@@ -41,18 +41,24 @@ app.post('/api/extract-audio', async (req, res) => {
     console.log(`🎬 Extracting audio from: ${youtubeUrl}`);
     
     try {
-      // Get video info using play-dl
-      const videoInfo = await playdl.video_info(youtubeUrl);
+      // Use youtube-dl-exec to get best audio format
+      const info = await exec(youtubeUrl, {
+        dumpJson: true,
+        noWarnings: true,
+        quiet: true
+      });
       
-      if (!videoInfo) {
-        throw new Error('Could not fetch video information');
-      }
+      console.log(`✅ Got video info: ${info.title}`);
       
-      console.log(`✅ Got video info: ${videoInfo.video_details.title}`);
+      // Extract best audio URL
+      const audioUrl = await exec(youtubeUrl, {
+        format: 'bestaudio[ext=m4a]/bestaudio',
+        getUrl: true,
+        noWarnings: true,
+        quiet: true
+      });
       
-      // Get stream
-      const stream = await playdl.stream(youtubeUrl, { quality: 1, type: 'audio' });
-      if (!stream || !stream.url) {
+      if (!audioUrl) {
         throw new Error('Could not extract audio URL');
       }
       
@@ -60,10 +66,10 @@ app.post('/api/extract-audio', async (req, res) => {
       
       res.json({
         success: true,
-        audioUrl: stream.url,
-        title: videoInfo.video_details.title,
-        duration: videoInfo.video_details.duration,
-        videoId: videoInfo.video_details.video_id,
+        audioUrl: audioUrl.trim(),
+        title: info.title,
+        duration: info.duration || 0,
+        videoId: info.id,
         extractedAt: new Date().toISOString()
       });
       
@@ -102,6 +108,7 @@ app.post('/api/search-and-extract', async (req, res) => {
     console.log(`🔍 Processing: query="${query}", videoId="${videoId}"`);
     
     let targetUrl;
+    let videoInfo;
     
     if (url) {
       targetUrl = url;
@@ -120,17 +127,22 @@ app.post('/api/search-and-extract', async (req, res) => {
       console.log(`🔍 Searching YouTube for: ${query}`);
       
       try {
-        // Search YouTube
-        const videos = await playdl.search(query, { limit: 1, type: 'video' });
+        // Search YouTube using youtube-dl-exec
+        const searchUrl = `ytsearch1:${query}`;
+        const results = await exec(searchUrl, {
+          dumpJson: true,
+          noWarnings: true,
+          quiet: true
+        });
         
-        if (!videos || videos.length === 0) {
+        if (!results || !results.id) {
           throw new Error('No YouTube results found');
         }
         
-        const video = videos[0];
-        targetUrl = video.url;
+        targetUrl = `https://www.youtube.com/watch?v=${results.id}`;
+        videoInfo = results;
         
-        console.log(`✅ Found: ${video.title}`);
+        console.log(`✅ Found: ${results.title}`);
         
       } catch (searchError) {
         console.error(`❌ Search failed: ${searchError.message}`);
@@ -146,18 +158,26 @@ app.post('/api/search-and-extract', async (req, res) => {
     console.log(`🎬 Extracting audio from search result...`);
     
     try {
-      // Get video info
-      const videoInfo = await playdl.video_info(targetUrl);
-      
+      // Get video info if not already fetched
       if (!videoInfo) {
-        throw new Error('Could not fetch video information');
+        videoInfo = await exec(targetUrl, {
+          dumpJson: true,
+          noWarnings: true,
+          quiet: true
+        });
       }
       
-      console.log(`✅ Got video info: ${videoInfo.video_details.title}`);
+      console.log(`✅ Got video info: ${videoInfo.title}`);
       
-      // Get stream
-      const stream = await playdl.stream(targetUrl, { quality: 1, type: 'audio' });
-      if (!stream || !stream.url) {
+      // Extract best audio URL
+      const audioUrl = await exec(targetUrl, {
+        format: 'bestaudio[ext=m4a]/bestaudio',
+        getUrl: true,
+        noWarnings: true,
+        quiet: true
+      });
+      
+      if (!audioUrl) {
         throw new Error('Could not extract audio URL');
       }
       
@@ -165,10 +185,10 @@ app.post('/api/search-and-extract', async (req, res) => {
       
       const responseData = {
         success: true,
-        audioUrl: stream.url,
-        title: videoInfo.video_details.title,
-        videoId: videoInfo.video_details.video_id,
-        duration: videoInfo.video_details.duration || 0,
+        audioUrl: audioUrl.trim(),
+        title: videoInfo.title,
+        videoId: videoInfo.id,
+        duration: videoInfo.duration || 0,
         url: targetUrl,
         extractedAt: new Date().toISOString()
       };
@@ -220,13 +240,12 @@ app.listen(PORT, () => {
    - POST /api/extract-audio
    - POST /api/search-and-extract
 
-🚀 Using: play-dl (Node.js-based)
+🚀 Using: youtube-dl-exec (Node wrapper for yt-dlp)
 ✅ Real YouTube stream extraction
 ✅ Search caching for speed (5 min TTL)
-✅ No system dependencies needed
-✅ Lightning fast builds & deployment
+✅ Works reliably on Railway
 🎵 Supported: Any YouTube video
 
-Ready to extract real YouTube audio! 🎧
+Ready to extract REAL YouTube audio! 🎧
   `);
 });
