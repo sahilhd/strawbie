@@ -1,37 +1,37 @@
-# YouTube Backend with yt-dlp
+# Use Python base image with Node.js
+FROM python:3.11-slim
 
-FROM node:18-slim
-
-# Set shell for proper error handling
-SHELL ["/bin/bash", "-c"]
-
-# Install system dependencies
+# Install Node.js and system dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-      python3 \
-      python3-pip \
+      curl \
+      ca-certificates \
       ffmpeg && \
+    curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
+    apt-get install -y nodejs && \
     rm -rf /var/lib/apt/lists/*
 
-# Install yt-dlp
-RUN pip3 install --no-cache-dir yt-dlp && \
-    which yt-dlp && \
-    python3 -m yt_dlp --version
+# Install yt-dlp globally
+RUN pip3 install --no-cache-dir yt-dlp
+
+# Verify installations
+RUN python3 --version && \
+    node --version && \
+    npm --version && \
+    yt-dlp --version
 
 WORKDIR /app
 
-# Copy application
+# Copy backend code
+COPY youtube-backend/package*.json ./youtube-backend/
+RUN cd youtube-backend && npm ci --prefer-offline
+
 COPY youtube-backend/ ./youtube-backend/
 
-# Install Node dependencies
-RUN cd youtube-backend && npm ci --prefer-offline
+WORKDIR /app/youtube-backend
 
 # Expose port
 EXPOSE 3000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3000/health', (r) => {if (r.statusCode !== 200) throw new Error()})"
-
-# Start the server
-CMD ["node", "youtube-backend/server.js"]
+# Start server
+CMD ["node", "server.js"]
