@@ -2,10 +2,12 @@
 # This tells Railway exactly how to build and run the app
 
 [build]
-# Use Node 18.x
+# Install Python and system dependencies
+# Then install Node dependencies and yt-dlp
 cmds = [
-  "cd youtube-backend",
-  "npm install"
+  "apt-get update && apt-get install -y python3 python3-pip",
+  "pip3 install yt-dlp || python3 -m pip install yt-dlp",
+  "cd youtube-backend && npm install"
 ]
 
 [start]

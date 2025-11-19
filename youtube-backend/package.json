@@ -4,6 +4,7 @@
   "description": "Backend service to extract YouTube audio streams for music playback",
   "main": "server.js",
   "scripts": {
+    "postinstall": "pip3 install yt-dlp || python3 -m pip install yt-dlp || true",
     "start": "node server.js",
     "dev": "nodemon server.js"
   },
