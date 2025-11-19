@@ -1,12 +1,19 @@
 # Nixpacks configuration for Railway
-# YouTube backend with real music extraction
+# YouTube backend with real music extraction using yt-dlp
 
 [providers]
 runtimes = ["python311", "nodejs"]
 
+[install]
+# Install yt-dlp via both apt and pip as fallbacks
+apt = ["python3-pip", "ffmpeg"]
+
 [build]
 cmds = [
+  "python3 --version",
+  "pip3 install --no-cache-dir --upgrade pip",
   "pip3 install --no-cache-dir yt-dlp",
+  "python3 -m yt_dlp --version",
   "cd youtube-backend && npm ci --prefer-offline"
 ]
 
