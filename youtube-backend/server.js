@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
-const { Innertube, UniversalCache } = require('youtubei.js');
+const youtubedl = require('youtube-dl');
+const { URL } = require('url');
 require('dotenv').config();
 
 const app = express();
@@ -9,23 +10,6 @@ const PORT = process.env.PORT || 3000;
 // Cache for search results
 const searchCache = new Map();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-
-// YouTube client (will be initialized on first use)
-let yt = null;
-
-// Initialize YouTube client
-async function initYouTube() {
-  if (yt) return yt;
-  
-  console.log('🎬 Initializing YouTube client...');
-  yt = await Innertube.create({
-    cache: new UniversalCache(false),
-    cookie: process.env.YOUTUBE_COOKIE || undefined
-  });
-  console.log('✅ YouTube client initialized');
-  
-  return yt;
-}
 
 // Middleware
 app.use(cors());
@@ -53,46 +37,50 @@ app.post('/api/extract-audio', async (req, res) => {
       });
     }
 
-    const youtubeClient = await initYouTube();
+    const youtubeUrl = url || `https://www.youtube.com/watch?v=${videoId}`;
     
-    // Extract videoId from URL if needed
-    let vid = videoId;
-    if (url && !videoId) {
-      const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/);
-      vid = match ? match[1] : null;
-    }
+    console.log(`🎬 Extracting audio from: ${youtubeUrl}`);
     
-    if (!vid) {
-      return res.status(400).json({ error: 'Invalid URL or videoId' });
-    }
-    
-    console.log(`🎬 Extracting audio from: ${vid}`);
-    
-    // Get video info
-    const video = await youtubeClient.getVideo(vid);
-    const info = video.basic_info;
-    
-    console.log(`✅ Got video info: ${info.title}`);
-    
-    // Get format with audio
-    const chosenFormat = video.chooseFormat({
-      quality: 'lowest',  // Get lowest quality for fastest load
-      type: 'audio'       // Audio only
-    });
-    
-    if (!chosenFormat || !chosenFormat.url) {
-      throw new Error('Could not extract audio URL');
-    }
-    
-    console.log(`✅ Successfully extracted audio URL`);
-    
-    res.json({
-      success: true,
-      audioUrl: chosenFormat.url,
-      title: info.title,
-      duration: info.duration,
-      videoId: vid,
-      extractedAt: new Date().toISOString()
+    return new Promise((resolve, reject) => {
+      const video = youtubedl(youtubeUrl, [
+        '--format=bestaudio',
+        '--no-warnings',
+        '-j'  // JSON output for metadata
+      ], { cwd: __dirname });
+      
+      let metadata = '';
+      let audioUrl = null;
+      
+      video.on('data', (chunk) => {
+        metadata += chunk.toString();
+      });
+      
+      video.on('info', (info) => {
+        console.log(`✅ Got video info: ${info.title}`);
+        audioUrl = info.url;
+      });
+      
+      video.on('complete', (info) => {
+        console.log(`✅ Successfully extracted audio URL`);
+        
+        if (audioUrl || info) {
+          resolve(res.json({
+            success: true,
+            audioUrl: audioUrl || info.url,
+            title: info.title,
+            duration: info.duration || 0,
+            videoId: info.video_id || videoId,
+            extractedAt: new Date().toISOString()
+          }));
+        } else {
+          reject(new Error('Could not extract audio URL'));
+        }
+      });
+      
+      video.on('error', (error) => {
+        console.error(`⚠️ Extraction failed: ${error.message}`);
+        reject(error);
+      });
     });
     
   } catch (error) {
@@ -121,9 +109,7 @@ app.post('/api/search-and-extract', async (req, res) => {
       });
     }
 
-    const youtubeClient = await initYouTube();
-    
-    let targetVideoId;
+    let targetUrl;
     
     // Check cache if searching
     if (query) {
@@ -138,68 +124,42 @@ app.post('/api/search-and-extract', async (req, res) => {
       // Search YouTube
       console.log(`🔍 Searching YouTube for: ${query}`);
       
-      const search_results = await youtubeClient.search(query);
-      const firstVideo = search_results.contents?.[0];
-      
-      if (!firstVideo || !firstVideo.id) {
-        throw new Error('No YouTube results found');
-      }
-      
-      targetVideoId = firstVideo.id;
-      console.log(`✅ Found: ${firstVideo.title?.simpleText || firstVideo.title?.text || 'Unknown'}`);
+      return new Promise((resolve, reject) => {
+        const searchUrl = `ytsearch1:${query}`;
+        const video = youtubedl(searchUrl, [
+          '--no-warnings',
+          '-j'  // JSON output
+        ], { cwd: __dirname });
+        
+        video.on('info', (info) => {
+          console.log(`✅ Found: ${info.title}`);
+          targetUrl = `https://www.youtube.com/watch?v=${info.video_id}`;
+          
+          // Now extract audio from this video
+          extractAndRespond(targetUrl, query, res, searchCache);
+        });
+        
+        video.on('error', (error) => {
+          console.error(`❌ Search failed: ${error.message}`);
+          res.status(500).json({
+            error: 'Failed to search YouTube',
+            message: error.message
+          });
+        });
+      });
       
     } else if (videoId) {
-      targetVideoId = videoId;
+      targetUrl = `https://www.youtube.com/watch?v=${videoId}`;
     } else if (url) {
-      const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/);
-      targetVideoId = match ? match[1] : null;
-      
-      if (!targetVideoId) {
-        throw new Error('Invalid YouTube URL');
-      }
+      targetUrl = url;
     }
     
-    if (!targetVideoId) {
-      throw new Error('Could not determine video ID');
+    if (!targetUrl) {
+      throw new Error('Could not determine video URL');
     }
     
-    // Extract audio
-    console.log(`🎬 Extracting audio...`);
-    
-    const video = await youtubeClient.getVideo(targetVideoId);
-    const info = video.basic_info;
-    
-    const chosenFormat = video.chooseFormat({
-      quality: 'lowest',
-      type: 'audio'
-    });
-    
-    if (!chosenFormat || !chosenFormat.url) {
-      throw new Error('Could not extract audio URL');
-    }
-    
-    console.log(`✅ Successfully extracted audio URL`);
-    
-    const responseData = {
-      success: true,
-      audioUrl: chosenFormat.url,
-      title: info.title,
-      duration: info.duration,
-      videoId: targetVideoId,
-      url: `https://www.youtube.com/watch?v=${targetVideoId}`,
-      extractedAt: new Date().toISOString()
-    };
-    
-    // Cache the result
-    if (query) {
-      const cacheKey = `search:${query.toLowerCase()}`;
-      searchCache.set(cacheKey, {
-        data: responseData,
-        timestamp: Date.now()
-      });
-    }
-    
-    res.json(responseData);
+    // Extract audio from determined URL
+    extractAndRespond(targetUrl, query, res, searchCache);
     
   } catch (error) {
     console.error('❌ Error searching/extracting:', error.message);
@@ -209,6 +169,60 @@ app.post('/api/search-and-extract', async (req, res) => {
     });
   }
 });
+
+/**
+ * Helper function to extract audio and send response
+ */
+function extractAndRespond(youtubeUrl, query, res, cache) {
+  console.log(`🎬 Extracting audio...`);
+  
+  const video = youtubedl(youtubeUrl, [
+    '--format=bestaudio',
+    '--no-warnings',
+    '-j'
+  ], { cwd: __dirname });
+  
+  video.on('info', (info) => {
+    console.log(`✅ Got video info: ${info.title}`);
+    
+    const audioUrl = info.url || info.formats?.[0]?.url;
+    
+    if (!audioUrl) {
+      video.emit('error', new Error('Could not extract audio URL'));
+      return;
+    }
+    
+    const responseData = {
+      success: true,
+      audioUrl: audioUrl,
+      title: info.title,
+      videoId: info.video_id,
+      duration: info.duration || 0,
+      url: youtubeUrl,
+      extractedAt: new Date().toISOString()
+    };
+    
+    // Cache the result if searching
+    if (query) {
+      const cacheKey = `search:${query.toLowerCase()}`;
+      cache.set(cacheKey, {
+        data: responseData,
+        timestamp: Date.now()
+      });
+    }
+    
+    console.log(`✅ Successfully extracted audio URL`);
+    res.json(responseData);
+  });
+  
+  video.on('error', (error) => {
+    console.error(`❌ Extraction failed: ${error.message}`);
+    res.status(500).json({
+      error: 'Failed to extract audio from YouTube',
+      message: error.message
+    });
+  });
+}
 
 // Error handling
 app.use((err, req, res, next) => {
@@ -233,12 +247,11 @@ app.listen(PORT, () => {
    - POST /api/extract-audio
    - POST /api/search-and-extract
 
-🚀 Using: YouTubei.js (Modern Innertube API)
+🚀 Using: youtube-dl (Node wrapper for youtube-dl)
 ✅ REAL YouTube stream extraction
 ✅ Search caching (5 min TTL)
 ✅ Works reliably on Railway
 ✅ Pure JavaScript - No Python!
-✅ Handles YouTube's modern security
 🎵 Supports: Any YouTube video
 
 Ready to extract REAL YouTube audio! 🎧
