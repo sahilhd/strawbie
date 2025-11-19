@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
-const { execSync } = require('child_process');
+const { execSync, spawn } = require('child_process');
+const https = require('https');
+const http = require('http');
 require('dotenv').config();
 
 const app = express();
@@ -232,13 +234,98 @@ app.listen(PORT, () => {
    - GET  /health
    - POST /api/extract-audio
    - POST /api/search-and-extract
+   - GET  /api/stream/:videoId
 
 🚀 Using: yt-dlp (via Docker with Python)
 ✅ REAL YouTube stream extraction
+✅ Audio streaming proxy (no AVPlayer issues!)
 ✅ Search caching (5 min TTL)
 ✅ Works reliably on Railway
 🎵 Supports: Any YouTube video
 
 Ready to extract REAL YouTube audio! 🎧
   `);
+});
+
+/**
+ * Stream audio directly from YouTube through backend proxy
+ * This bypasses AVPlayer restrictions on YouTube URLs
+ * 
+ * GET /api/stream/:videoId
+ * Returns: Audio stream (audio/webm or audio/mp4)
+ */
+app.get('/api/stream/:videoId', async (req, res) => {
+  const { videoId } = req.params;
+  
+  if (!videoId) {
+    return res.status(400).json({ error: 'Missing videoId parameter' });
+  }
+
+  try {
+    const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    console.log(`🎵 Streaming audio for: ${videoId}`);
+
+    // Get audio URL using yt-dlp
+    const audioUrlOutput = runYtDlp(`-f bestaudio --get-url --no-warnings "${youtubeUrl}"`);
+    const audioUrl = audioUrlOutput.trim();
+
+    if (!audioUrl || !audioUrl.startsWith('http')) {
+      throw new Error('Failed to get audio URL');
+    }
+
+    console.log(`✅ Got audio URL, proxying stream...`);
+
+    // Set appropriate headers
+    res.setHeader('Content-Type', 'audio/webm');
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+
+    // Proxy the audio stream from YouTube to client
+    const protocol = audioUrl.startsWith('https') ? https : http;
+    
+    const proxyRequest = protocol.get(audioUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15',
+        'Accept': '*/*',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Referer': 'https://www.youtube.com/'
+      }
+    }, (proxyRes) => {
+      // Forward headers from YouTube
+      res.setHeader('Content-Length', proxyRes.headers['content-length'] || '0');
+      res.setHeader('Content-Type', proxyRes.headers['content-type'] || 'audio/webm');
+
+      // Pipe YouTube audio stream to client
+      proxyRes.pipe(res);
+
+      proxyRes.on('error', (err) => {
+        console.error(`❌ Proxy stream error: ${err.message}`);
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'Stream error' });
+        }
+      });
+    });
+
+    proxyRequest.on('error', (err) => {
+      console.error(`❌ Proxy request error: ${err.message}`);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Failed to proxy audio stream' });
+      }
+    });
+
+    // Handle client disconnect
+    req.on('close', () => {
+      console.log('🔌 Client disconnected, ending proxy');
+      proxyRequest.destroy();
+    });
+
+  } catch (error) {
+    console.error(`❌ Stream error: ${error.message}`);
+    if (!res.headersSent) {
+      res.status(500).json({
+        error: 'Failed to stream audio',
+        details: error.message
+      });
+    }
+  }
 });
