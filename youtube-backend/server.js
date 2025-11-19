@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const { exec } = require('youtube-dl-exec');
+const { execSync } = require('child_process');
 require('dotenv').config();
 
 const app = express();
@@ -41,24 +41,19 @@ app.post('/api/extract-audio', async (req, res) => {
     console.log(`🎬 Extracting audio from: ${youtubeUrl}`);
     
     try {
-      // Use youtube-dl-exec to get best audio format
-      const info = await exec(youtubeUrl, {
-        dumpJson: true,
-        noWarnings: true,
-        quiet: true,
-        ignoreErrors: true
-      });
+      // Use system yt-dlp to get video info
+      const infoJson = execSync(`yt-dlp --dump-json --no-warnings --quiet --ignore-errors "${youtubeUrl}"`, {
+        encoding: 'utf-8',
+        maxBuffer: 1024 * 1024 * 10
+      }).trim();
       
+      const info = JSON.parse(infoJson);
       console.log(`✅ Got video info: ${info.title}`);
       
       // Extract best audio URL
-      const audioUrl = await exec(youtubeUrl, {
-        format: 'bestaudio[ext=m4a]/bestaudio',
-        getUrl: true,
-        noWarnings: true,
-        quiet: true,
-        extractorArgs: 'youtube:player_client=android'
-      });
+      const audioUrl = execSync(`yt-dlp --format bestaudio --get-url --no-warnings --quiet "${youtubeUrl}"`, {
+        encoding: 'utf-8'
+      }).trim();
       
       if (!audioUrl) {
         throw new Error('Could not extract audio URL');
@@ -68,7 +63,7 @@ app.post('/api/extract-audio', async (req, res) => {
       
       res.json({
         success: true,
-        audioUrl: audioUrl.trim(),
+        audioUrl: audioUrl,
         title: info.title,
         duration: info.duration || 0,
         videoId: info.id,
@@ -129,16 +124,14 @@ app.post('/api/search-and-extract', async (req, res) => {
       console.log(`🔍 Searching YouTube for: ${query}`);
       
       try {
-        // Search YouTube using youtube-dl-exec with extractor args to bypass restrictions
+        // Search YouTube using system yt-dlp
         const searchUrl = `ytsearch1:${query}`;
-        const results = await exec(searchUrl, {
-          dumpJson: true,
-          noWarnings: true,
-          quiet: true,
-          ignoreErrors: true,
-          playlist: false,
-          extractorArgs: 'youtube:player_client=android'
-        });
+        const resultsJson = execSync(`yt-dlp --dump-json --no-warnings --quiet --ignore-errors "${searchUrl}"`, {
+          encoding: 'utf-8',
+          maxBuffer: 1024 * 1024 * 10
+        }).trim();
+        
+        const results = JSON.parse(resultsJson);
         
         if (!results || !results.id) {
           throw new Error('No YouTube results found');
@@ -165,25 +158,20 @@ app.post('/api/search-and-extract', async (req, res) => {
     try {
       // Get video info if not already fetched
       if (!videoInfo) {
-        videoInfo = await exec(targetUrl, {
-          dumpJson: true,
-          noWarnings: true,
-          quiet: true,
-          ignoreErrors: true,
-          extractorArgs: 'youtube:player_client=android'
-        });
+        const infoJson = execSync(`yt-dlp --dump-json --no-warnings --quiet --ignore-errors "${targetUrl}"`, {
+          encoding: 'utf-8',
+          maxBuffer: 1024 * 1024 * 10
+        }).trim();
+        
+        videoInfo = JSON.parse(infoJson);
       }
       
       console.log(`✅ Got video info: ${videoInfo.title}`);
       
       // Extract best audio URL
-      const audioUrl = await exec(targetUrl, {
-        format: 'bestaudio[ext=m4a]/bestaudio',
-        getUrl: true,
-        noWarnings: true,
-        quiet: true,
-        extractorArgs: 'youtube:player_client=android'
-      });
+      const audioUrl = execSync(`yt-dlp --format bestaudio --get-url --no-warnings --quiet "${targetUrl}"`, {
+        encoding: 'utf-8'
+      }).trim();
       
       if (!audioUrl) {
         throw new Error('Could not extract audio URL');
